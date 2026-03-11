@@ -11,22 +11,23 @@ public class ChangePredatorLifetime : MonoBehaviour
 
     public void Update()
     {
-        _lifetime.decreasingFactor = 1.0f;
-        foreach(var predator in Ex4Spawner.PredatorTransforms)
-        {
-            if (Vector3.Distance(predator.position, transform.position) < Ex3Config.TouchingDistance)
-            {
-                _lifetime.reproduced = true;
-                break;
-            }
-        }
-        
-        foreach(var prey in Ex4Spawner.PreyTransforms)
-        {
-            if (Vector3.Distance(prey.position, transform.position) < Ex3Config.TouchingDistance)
-            {
-                _lifetime.decreasingFactor /= 2;
-            }
-        }
+        // déjà géré dans LifetimeManager
+        //_lifetime.decreasingFactor = 1.0f;
+        //foreach(var predator in Ex4Spawner.PredatorTransforms)
+        //{
+        //    if (Vector3.Distance(predator.position, transform.position) < Ex3Config.TouchingDistance)
+        //    {
+        //        _lifetime.reproduced = true;
+        //        break;
+        //    }
+        //}
+
+        //foreach(var prey in Ex4Spawner.PreyTransforms)
+        //{
+        //    if (Vector3.Distance(prey.position, transform.position) < Ex3Config.TouchingDistance)
+        //    {
+        //        _lifetime.decreasingFactor /= 2;
+        //    }
+        //}
     }
 }

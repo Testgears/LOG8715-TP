@@ -26,7 +26,7 @@ public class Lifetime : MonoBehaviour
     
     void Update()
     {
-        _lifetime -= Time.deltaTime * decreasingFactor;
+        // _lifetime -= Time.deltaTime * decreasingFactor; déjà géré par LifetimeManager
         if (_lifetime > 0) return;
         
         if (reproduced || alwaysReproduce)

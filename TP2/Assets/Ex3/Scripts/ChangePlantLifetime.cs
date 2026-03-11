@@ -11,14 +11,15 @@ public class ChangePlantLifetime : MonoBehaviour
 
     public void Update()
     {
-        _lifetime.decreasingFactor = 1.0f;
-        foreach(var prey in Ex4Spawner.PreyTransforms)
-        {
-            if (Vector3.Distance(prey.position, transform.position) < Ex3Config.TouchingDistance)
-            {
-                _lifetime.decreasingFactor *= 2f;
-                break;
-            }
-        }
+        // déjà géré dans LifetimeManager
+        //_lifetime.decreasingFactor = 1.0f;
+        //foreach(var prey in Ex4Spawner.PreyTransforms)
+        //{
+        //    if (Vector3.Distance(prey.position, transform.position) < Ex3Config.TouchingDistance)
+        //    {
+        //        _lifetime.decreasingFactor *= 2f;
+        //        break;
+        //    }
+        //}
     }
 }

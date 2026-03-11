@@ -13,19 +13,20 @@ public class MovePredatorTowardPrey : MonoBehaviour
     }
 
     public void Update()
-    {
-        var closestDistance = float.MaxValue;
-        var closestPosition = transform.position;
-        foreach(var prey in Ex4Spawner.PreyTransforms)
-        {
-            var distance = Vector3.Distance(prey.position, transform.position);
-            if (distance < closestDistance)
-            {
-                closestDistance = distance;
-                closestPosition = prey.position;
-            }
-        }
+    {   
+        // déjà géré par MovementManager
+        //var closestDistance = float.MaxValue;
+        //var closestPosition = transform.position;
+        //foreach(var prey in Ex4Spawner.PreyTransforms)
+        //{
+        //    var distance = Vector3.Distance(prey.position, transform.position);
+        //    if (distance < closestDistance)
+        //    {
+        //        closestDistance = distance;
+        //        closestPosition = prey.position;
+        //    }
+        //}
 
-        _velocity.velocity = (closestPosition - transform.position) * Ex3Config.PredatorSpeed;
+        //_velocity.velocity = (closestPosition - transform.position) * Ex3Config.PredatorSpeed;
     }
 }
