@@ -5,16 +5,15 @@ using UnityEngine;
 
 public class MovementManager : MonoBehaviour
 {
+    [Range(1, 10)][SerializeField] private int updateRate = 4;
+
     void Update()
     {
-        // Vérification de sécurité pour l'initialisation du Spawner
         if (Ex4Spawner.PlantTransforms == null || Ex4Spawner.PreyTransforms == null) return;
 
-        // 1. Gérer les Proies -> ciblent les Plantes
         RunMovementJob(Ex4Spawner.PreyTransforms, Ex4Spawner.PlantTransforms,
                        Ex4Spawner.PreyVelocities, Ex3Config.PreySpeed);
 
-        // 2. Gérer les Prédateurs -> ciblent les Proies
         RunMovementJob(Ex4Spawner.PredatorTransforms, Ex4Spawner.PreyTransforms,
                        Ex4Spawner.PredatorVelocities, Ex3Config.PredatorSpeed);
     }
@@ -25,54 +24,48 @@ public class MovementManager : MonoBehaviour
 
         int seekerCount = seekers.Length;
         int targetCount = targets.Length;
+        float cellSize = 5f;
 
-        var seekerPositions = new NativeArray<float3>(seekerCount, Allocator.TempJob);
-        var targetPositions = new NativeArray<float3>(targetCount, Allocator.TempJob);
+        var seekerPos = new NativeArray<float3>(seekerCount, Allocator.TempJob);
+        var targetPos = new NativeArray<float3>(targetCount, Allocator.TempJob);
+        var currentVels = new NativeArray<float3>(seekerCount, Allocator.TempJob);
         var results = new NativeArray<float3>(seekerCount, Allocator.TempJob);
+        var spatialMap = new NativeParallelMultiHashMap<int, int>(targetCount, Allocator.TempJob);
 
-        // Copie des positions des chercheurs (seulement s'ils sont actifs)
         for (int i = 0; i < seekerCount; i++)
         {
-            if (seekers[i].gameObject.activeSelf)
-                seekerPositions[i] = seekers[i].position;
-            else
-                // Si le chercheur est mort, on le met loin pour qu'il ne calcule rien d'utile
-                seekerPositions[i] = new float3(float.MaxValue);
+            seekerPos[i] = seekers[i].gameObject.activeSelf ? (float3)seekers[i].position : new float3(float.MaxValue);
+            currentVels[i] = vels[i].velocity; // Capture de la vitesse actuelle
         }
-
-        // Copie des cibles (IMPORTANT : ignore les objets inactifs)
         for (int j = 0; j < targetCount; j++)
-        {
-            if (targets[j].gameObject.activeSelf)
-                targetPositions[j] = targets[j].position;
-            else
-                // On met une position infinie pour que cette cible soit ignorée par le calcul du plus proche
-                targetPositions[j] = new float3(float.MaxValue);
-        }
+            targetPos[j] = targets[j].gameObject.activeSelf ? (float3)targets[j].position : new float3(float.MaxValue);
 
-        var job = new CalculateMovementJob
+        var hashJob = new HashPositionsJob { Positions = targetPos, CellSize = cellSize, SpatialMap = spatialMap.AsParallelWriter() };
+        JobHandle hashHandle = hashJob.Schedule(targetCount, 64);
+
+        var moveJob = new CalculateMovementJob
         {
-            Seekers = seekerPositions,
-            Targets = targetPositions,
+            Seekers = seekerPos,
+            Targets = targetPos,
+            SpatialMap = spatialMap,
+            CurrentVelocities = currentVels,
             OutVelocities = results,
-            Speed = speed
+            CellSize = cellSize,
+            Speed = speed,
+            FrameCount = Time.frameCount,
+            UpdateRate = updateRate
         };
 
-        JobHandle handle = job.Schedule(seekerCount, 64);
-        handle.Complete();
+        JobHandle moveHandle = moveJob.Schedule(seekerCount, 64, hashHandle);
+        moveHandle.Complete();
 
-        // Application des résultats aux scripts Velocity
         for (int i = 0; i < seekerCount; i++)
-        {
-            // On n'applique la vitesse que si l'objet est actif
-            if (seekers[i].gameObject.activeSelf)
-            {
-                vels[i].velocity = results[i];
-            }
-        }
+            if (seekers[i].gameObject.activeSelf) vels[i].velocity = results[i];
 
-        seekerPositions.Dispose();
-        targetPositions.Dispose();
+        seekerPos.Dispose();
+        targetPos.Dispose();
+        currentVels.Dispose();
         results.Dispose();
+        spatialMap.Dispose();
     }
 }
