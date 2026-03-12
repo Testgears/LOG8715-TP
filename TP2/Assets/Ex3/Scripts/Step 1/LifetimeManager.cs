@@ -45,22 +45,44 @@ public class LifetimeManager : MonoBehaviour
         for (int i = 0; i < preyCount; i++) preyPos[i] = Ex4Spawner.PreyTransforms[i].position;
         for (int i = 0; i < predCount; i++) predPos[i] = Ex4Spawner.PredatorTransforms[i].position;
 
-        // 2. Configuration du Job
-        var job = new UpdateLifetimeJob
+        // 2. Configuration et planification des 3 Jobs Parallèles
+        float distSq = Ex3Config.TouchingDistance * Ex3Config.TouchingDistance;
+
+        var plantJob = new UpdatePlantLifetimeJob
         {
             PlantPositions = plantPos,
             PreyPositions = preyPos,
-            PredatorPositions = predPos,
             PlantLifetimes = _plantLifetimes,
-            PreyLifetimes = _preyLifetimes,
-            PredatorLifetimes = _predatorLifetimes,
             DeltaTime = Time.deltaTime,
-            TouchingDistanceSq = Ex3Config.TouchingDistance * Ex3Config.TouchingDistance
+            TouchingDistanceSq = distSq
         };
 
-        // 3. Exécution (Single-Thread avec Burst)
-        JobHandle handle = job.Schedule();
-        handle.Complete(); // On attend la fin pour appliquer les résultats
+        var preyJob = new UpdatePreyLifetimeJob
+        {
+            PreyPositions = preyPos,
+            PlantPositions = plantPos,
+            PredatorPositions = predPos,
+            PreyLifetimes = _preyLifetimes,
+            DeltaTime = Time.deltaTime,
+            TouchingDistanceSq = distSq
+        };
+
+        var predJob = new UpdatePredatorLifetimeJob
+        {
+            PredatorPositions = predPos,
+            PreyPositions = preyPos,
+            PredatorLifetimes = _predatorLifetimes,
+            DeltaTime = Time.deltaTime,
+            TouchingDistanceSq = distSq
+        };
+
+        // Lancement en parallèle (on combine les handles pour attendre les 3 en même temps)
+        JobHandle plantHandle = plantJob.Schedule(plantCount, 64);
+        JobHandle preyHandle = preyJob.Schedule(preyCount, 64);
+        JobHandle predHandle = predJob.Schedule(predCount, 64);
+
+        // On attend que les 3 jobs soient finis
+        JobHandle.CombineDependencies(plantHandle, preyHandle, predHandle).Complete();
 
         // 4. Post-traitement : Appliquer les morts et les respawns
         ApplyResults(Ex4Spawner.PlantTransforms, Ex4Spawner.PlantLifetimes, _plantLifetimes);
@@ -79,27 +101,35 @@ public class LifetimeManager : MonoBehaviour
         {
             if (!transforms[i].gameObject.activeSelf) continue;
 
-            // Mise à jour visuelle (Progression pour l'échelle des plantes par ex)
-            // On injecte les valeurs calculées par le Job dans le MonoBehaviour original
+            // --- SYNCHRONISATION CRITIQUE ---
+            // On renvoie la vie calculée par le Job vers le MonoBehaviour
+            // pour que le script 'Plant' puisse la lire via GetProgression()
+            lifetimes[i].CurrentLifetime = dataArray[i].CurrentLifetime;
+
             lifetimes[i].reproduced = dataArray[i].Reproduced;
             lifetimes[i].decreasingFactor = dataArray[i].DecreasingFactor;
 
-            // Logique de mort / respawn (on réutilise la logique existante de Lifetime.cs)
+            // Logique de mort / respawn
             if (dataArray[i].CurrentLifetime <= 0)
             {
-                if (dataArray[i].Reproduced || lifetimes[i].alwaysReproduce)
-                {
-                    // Reset des données pour le respawn
-                    var newData = dataArray[i];
-                    newData.CurrentLifetime = newData.StartingLifetime;
-                    newData.Reproduced = false;
-                    dataArray[i] = newData;
 
-                    Ex4Spawner.Instance.Respawn(transforms[i]);
-                }
-                else
+                // Logique de mort / respawn (on réutilise la logique existante de Lifetime.cs)
+                if (dataArray[i].CurrentLifetime <= 0)
                 {
-                    transforms[i].gameObject.SetActive(false);
+                    if (dataArray[i].Reproduced || lifetimes[i].alwaysReproduce)
+                    {
+                        // Reset des données pour le respawn
+                        var newData = dataArray[i];
+                        newData.CurrentLifetime = newData.StartingLifetime;
+                        newData.Reproduced = false;
+                        dataArray[i] = newData;
+
+                        Ex4Spawner.Instance.Respawn(transforms[i]);
+                    }
+                    else
+                    {
+                        transforms[i].gameObject.SetActive(false);
+                    }
                 }
             }
         }
@@ -117,13 +147,11 @@ public class LifetimeManager : MonoBehaviour
     {
         for (int i = 0; i < source.Length; i++)
         {
-            // Note : Il faudra peut-être ajouter des getters/setters publics dans Lifetime.cs 
-            // pour accéder à _startingLifetime et _lifetime.
             target[i] = new LifetimeData
             {
-                StartingLifetime = 10f, // Valeur par défaut ou via reflet
-                CurrentLifetime = 10f,
-                DecreasingFactor = 1f,
+                StartingLifetime = source[i].StartingLifetime, // Utilise la propriété publique
+                CurrentLifetime = source[i].CurrentLifetime,   // Utilise la propriété publique
+                DecreasingFactor = source[i].decreasingFactor,
                 Reproduced = false
             };
         }

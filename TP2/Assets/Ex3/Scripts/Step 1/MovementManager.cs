@@ -58,7 +58,7 @@ public class MovementManager : MonoBehaviour
             Speed = speed
         };
 
-        JobHandle handle = job.Schedule();
+        JobHandle handle = job.Schedule(seekerCount, 64);
         handle.Complete();
 
         // Application des résultats aux scripts Velocity
