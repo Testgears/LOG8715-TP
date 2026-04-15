@@ -13,6 +13,9 @@ public class Player : NetworkBehaviour
 
     private GameState m_GameState;
 
+    private bool m_HasPendingReconciliation = false;
+    private int m_PendingServerTick = -1;
+
     // GameState peut etre nul si l'entite joueur est instanciee avant de charger MainScene
     private GameState GameState
     {
@@ -75,21 +78,10 @@ public class Player : NetworkBehaviour
 
     private void OnServerTickConfirmed(int oldTick, int newTick)
     {
-        // Avoid processing the same tick twice
         if (newTick <= m_LastReconciledTick) return;
-        m_LastReconciledTick = newTick;
 
-        // Remove all inputs older than confirmed tick
-        m_InputHistory.RemoveAll(r => r.Tick <= newTick);
-
-        // Start from server-confirmed position and replay remaining inputs
-        Vector2 recomputed = m_Position.Value;
-        foreach (var record in m_InputHistory)
-        {
-            recomputed = SimulateMove(recomputed, record.Input);
-        }
-
-        m_PredictedPosition = recomputed;
+        m_PendingServerTick = newTick;
+        m_HasPendingReconciliation = true;
     }
 
     private void FixedUpdate()
@@ -109,8 +101,32 @@ public class Player : NetworkBehaviour
         // Seul le client qui possede cette entite peut envoyer ses inputs. 
         if (IsClient && IsOwner)
         {
+            ReconcileIfNeeded();
             UpdateInputClient();
         }
+    }
+
+    private void ReconcileIfNeeded()
+    {
+        if (!m_HasPendingReconciliation) return;
+
+        if (m_PendingServerTick <= m_LastReconciledTick) return;
+
+        m_LastReconciledTick = m_PendingServerTick;
+        m_HasPendingReconciliation = false;
+
+        // Remove old inputs
+        m_InputHistory.RemoveAll(r => r.Tick <= m_LastReconciledTick);
+
+        // Recompute from latest server position
+        Vector2 recomputed = m_Position.Value;
+
+        foreach (var record in m_InputHistory)
+        {
+            recomputed = SimulateMove(recomputed, record.Input);
+        }
+
+        m_PredictedPosition = recomputed;
     }
 
     private void UpdatePositionServer()
@@ -204,7 +220,5 @@ public class Player : NetworkBehaviour
         // On utilise une file pour les inputs pour les cas ou on en recoit plusieurs en meme temps.
         m_InputQueue.Enqueue((input, tick));
     }
-
-
 
 }

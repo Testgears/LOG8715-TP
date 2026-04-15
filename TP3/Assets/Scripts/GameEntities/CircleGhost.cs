@@ -9,6 +9,7 @@ public class CircleGhost : NetworkBehaviour
     private MovingCircle m_MovingCircle;
 
     private GameState m_GameState;
+    private const float m_Radius = 1f;
 
     private void Awake()
     {
@@ -18,16 +19,21 @@ public class CircleGhost : NetworkBehaviour
     private void Update()
     {
         //transform.position = m_MovingCircle.Position;
-        if (IsServer)
+        if (IsServer || m_GameState == null)
         {
-            transform.position = (Vector3)m_MovingCircle.Position;
+            transform.localPosition = (Vector3)m_MovingCircle.Position;
             return;
         }
 
         // Client : extrapoler la position du cercle vers l'avant de RTT/2
         // (l'état du serveur que nous avons reçu a été envoyé il y a RTT/2)
-        float latency = m_GameState != null ? m_GameState.CurrentRTT / 2f : 0f;
+        float latency = m_GameState.CurrentRTT / 2f;
         Vector2 predicted = m_MovingCircle.Position + m_MovingCircle.Velocity * latency;
-        transform.position = (Vector3)predicted;   
+
+        var size = m_GameState.GameSize;
+        predicted.x = Mathf.Clamp(predicted.x, -size.x + m_Radius, size.x - m_Radius);
+        predicted.y = Mathf.Clamp(predicted.y, -size.y + m_Radius, size.y - m_Radius);
+
+        transform.localPosition = (Vector3)predicted;   
     }
 }

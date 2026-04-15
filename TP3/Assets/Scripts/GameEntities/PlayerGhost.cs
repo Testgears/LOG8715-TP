@@ -23,6 +23,14 @@ public class PlayerGhost : NetworkBehaviour
     {
         // Le propriétaire voit sa position prévue (sans lag)
         // Les autres voient la position répliquée par le serveur
-        transform.position = (Vector3)m_Player.PredictedPosition;
+        if (IsOwner)
+        {
+            transform.localPosition = (Vector3)m_Player.PredictedPosition;
+        }
+        else
+        {
+            transform.localPosition = (Vector3)m_Player.Position;
+        }
+            
     }
 }
