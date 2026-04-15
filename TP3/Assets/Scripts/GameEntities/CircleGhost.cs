@@ -27,13 +27,49 @@ public class CircleGhost : NetworkBehaviour
 
         // Client : extrapoler la position du cercle vers l'avant de RTT/2
         // (l'état du serveur que nous avons reçu a été envoyé il y a RTT/2)
-        float latency = m_GameState.CurrentRTT / 2f;
-        Vector2 predicted = m_MovingCircle.Position + m_MovingCircle.Velocity * latency;
+        Vector2 predictedPosition = m_MovingCircle.Position;
+        Vector2 predictedVelocity = m_MovingCircle.Velocity;
+
+        int localTick = NetworkUtility.GetLocalTick();
+        int serverTick = m_MovingCircle.ServerTick;
+
+        int ticksToPredict = Mathf.Max(0, localTick - serverTick);
+
+        for (int i = 0; i < ticksToPredict; i++)
+        {
+            SimulateCircleTick(ref predictedPosition, ref predictedVelocity);
+        }
+
+        transform.localPosition = (Vector3)predictedPosition;
+    }
+
+    private void SimulateCircleTick(ref Vector2 position, ref Vector2 velocity)
+    {
+        position += velocity * Time.fixedDeltaTime;
 
         var size = m_GameState.GameSize;
-        predicted.x = Mathf.Clamp(predicted.x, -size.x + m_Radius, size.x - m_Radius);
-        predicted.y = Mathf.Clamp(predicted.y, -size.y + m_Radius, size.y - m_Radius);
+        float radius = m_MovingCircle.Radius;
 
-        transform.localPosition = (Vector3)predicted;   
-    }
+        if (position.x - radius < -size.x)
+        {
+            position = new Vector2(-size.x + radius, position.y);
+            velocity *= new Vector2(-1, 1);
+        }
+        else if (position.x + radius > size.x)
+        {
+            position = new Vector2(size.x - radius, position.y);
+            velocity *= new Vector2(-1, 1);
+        }
+
+        if (position.y + radius > size.y)
+        {
+            position = new Vector2(position.x, size.y - radius);
+            velocity *= new Vector2(1, -1);
+        }
+        else if (position.y - radius < -size.y)
+        {
+            position = new Vector2(position.x, -size.y + radius);
+            velocity *= new Vector2(1, -1);
+        }
+    }  
 }

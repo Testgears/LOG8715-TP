@@ -18,6 +18,15 @@ public class MovingCircle : NetworkBehaviour
     private NetworkVariable<Vector2> m_Position = new NetworkVariable<Vector2>();
     private NetworkVariable<Vector2> m_Velocity = new NetworkVariable<Vector2>();
 
+    private NetworkVariable<int> m_ServerTick = new NetworkVariable<int>(
+        -1,
+        NetworkVariableReadPermission.Everyone,
+        NetworkVariableWritePermission.Server
+);
+
+    public int ServerTick => m_ServerTick.Value;
+    public float Radius => m_Radius;
+
     private GameState m_GameState;
 
     private void Awake()
@@ -71,6 +80,7 @@ public class MovingCircle : NetworkBehaviour
                 m_Position.Value = new Vector2(m_Position.Value.x, -size.y + m_Radius);
                 m_Velocity.Value *= new Vector2(1, -1);
             }
+            m_ServerTick.Value = NetworkUtility.GetLocalTick();
         }
     }
 }
