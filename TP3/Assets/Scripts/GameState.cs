@@ -20,7 +20,27 @@ public class GameState : NetworkBehaviour
 
     private NetworkVariable<bool> m_IsStunned = new NetworkVariable<bool>();
 
-    public bool IsStunned { get => m_IsStunned.Value; }
+    private bool m_IsLocallyStunned = false;
+
+    public bool IsStunned { get => m_IsStunned.Value || m_IsLocallyStunned; }
+
+    public void PredictLocalStun()
+    {
+        if (!m_IsLocallyStunned)
+        {
+            m_IsLocallyStunned = true;
+            m_IsStunned.OnValueChanged += OnServerStunChanged;
+        }
+    }
+
+    private void OnServerStunChanged(bool oldValue, bool newValue)
+    {
+        if (newValue)
+        {
+            m_IsLocallyStunned = false;
+            m_IsStunned.OnValueChanged -= OnServerStunChanged;
+        }
+    }
 
     private Coroutine m_StunCoroutine;
 

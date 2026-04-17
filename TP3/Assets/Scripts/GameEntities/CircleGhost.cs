@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -9,7 +7,11 @@ public class CircleGhost : NetworkBehaviour
     private MovingCircle m_MovingCircle;
 
     private GameState m_GameState;
-    private const float m_Radius = 1f;
+    private bool m_WasStunned = false;
+    private Vector2 m_FrozenPosition;
+    private int m_FrozenServerTick = -1;
+    private int m_FrozenLocalTick;
+    private int m_StunEndLocalTick = -1;
 
     private void Awake()
     {
@@ -18,22 +20,50 @@ public class CircleGhost : NetworkBehaviour
 
     private void Update()
     {
-        //transform.position = m_MovingCircle.Position;
         if (IsServer || m_GameState == null)
         {
             transform.localPosition = (Vector3)m_MovingCircle.Position;
             return;
         }
 
-        // Client : extrapoler la position du cercle vers l'avant de RTT/2
-        // (l'état du serveur que nous avons reçu a été envoyé il y a RTT/2)
-        Vector2 predictedPosition = m_MovingCircle.Position;
-        Vector2 predictedVelocity = m_MovingCircle.Velocity;
-
         int localTick = NetworkUtility.GetLocalTick();
         int serverTick = m_MovingCircle.ServerTick;
 
-        int ticksToPredict = Mathf.Max(0, localTick - serverTick);
+        bool isStunned = m_GameState.IsStunned;
+
+        if (!m_WasStunned && isStunned)
+        {
+            m_FrozenPosition = (Vector2)transform.localPosition;
+            m_FrozenServerTick = serverTick;
+            m_FrozenLocalTick = localTick;
+        }
+
+        if (m_WasStunned && !isStunned)
+            m_StunEndLocalTick = localTick;
+
+        m_WasStunned = isStunned;
+
+        if (isStunned)
+        {
+            transform.localPosition = (Vector3)m_FrozenPosition;
+            return;
+        }
+
+        Vector2 predictedPosition = m_MovingCircle.Position;
+        Vector2 predictedVelocity = m_MovingCircle.Velocity;
+
+        int maxTicks = (int)(NetworkUtility.GetLocalTickRate() * 2);
+        int ticksToPredict;
+
+        if (m_StunEndLocalTick >= 0)
+        {
+            int preStunTicks = m_FrozenLocalTick - m_FrozenServerTick;
+            ticksToPredict = Mathf.Clamp(localTick - m_StunEndLocalTick, 0, preStunTicks);
+        }
+        else
+        {
+            ticksToPredict = Mathf.Clamp(localTick - serverTick, 0, maxTicks);
+        }
 
         for (int i = 0; i < ticksToPredict; i++)
         {
@@ -71,5 +101,5 @@ public class CircleGhost : NetworkBehaviour
             position = new Vector2(position.x, -size.y + radius);
             velocity *= new Vector2(1, -1);
         }
-    }  
+    }
 }
