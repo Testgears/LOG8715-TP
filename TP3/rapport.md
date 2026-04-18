@@ -16,7 +16,9 @@ Chaque input WASD est appliqué immédiatement à `m_PredictedPosition` et conse
 
 **Artefacts visuels du stun**
 
-Au début du stun, `CircleGhost` capture `m_FrozenPosition` depuis `transform.localPosition` (position prédite courante) plutôt que depuis `m_MovingCircle.Position` (position serveur en retard), ce qui évite un recul visuel. À la fin du stun, `m_ServerTick` est artificiellement gonflé de `stun_duration` ticks puisqu'il était gelé côté serveur pendant le stun. Pour compenser, `ticksToPredict` repart de 0 et croît progressivement jusqu'à `preStunTicks` via `localTick - m_StunEndLocalTick`, éliminant la téléportation avant en fin de stun.
+Au début du stun, `CircleGhost` capture `m_FrozenPosition` depuis `transform.localPosition` (position prédite courante) plutôt que depuis `m_MovingCircle.Position` (position serveur en retard), ce qui évite un recul visuel.
+
+À la fin du stun, `serverTick` est encore celui d'avant la pause — le serveur n'a pas incrémenté `m_ServerTick` pendant le stun. Utiliser directement `localTick - serverTick` produirait un `ticksToPredict` très grand, causant une téléportation vers l'avant. Pour éviter ça, `CircleGhost` mémorise le tick local de fin de stun (`m_StunEndLocalTick`) et calcule `ticksToPredict = Clamp(localTick - m_StunEndLocalTick, 0, preStunTicks)`, où `preStunTicks = m_FrozenLocalTick - m_FrozenServerTick` est le décalage tick capturé à l'entrée du stun. Le résultat repart de 0 et croît progressivement jusqu'à la valeur normale, éliminant la téléportation.
 
 ## Maintenabilité
 
