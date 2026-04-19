@@ -45,6 +45,7 @@ public class Player : NetworkBehaviour
     private Queue<(Vector2 input, int tick)> m_InputQueue = new Queue<(Vector2, int)>();
 
     private int m_LastReconciledTick = -1;
+    private int m_LastSentTick = -1;
 
     private void Awake()
     {
@@ -132,14 +133,16 @@ public class Player : NetworkBehaviour
 
     private void UpdateInputClient()
     {
+        int tick = NetworkUtility.GetLocalTick();
+        if (tick == m_LastSentTick) return;
+        m_LastSentTick = tick;
+
         Vector2 inputDirection = Vector2.zero;
         if (Input.GetKey(KeyCode.W)) inputDirection += Vector2.up;
         if (Input.GetKey(KeyCode.A)) inputDirection += Vector2.left;
         if (Input.GetKey(KeyCode.S)) inputDirection += Vector2.down;
         if (Input.GetKey(KeyCode.D)) inputDirection += Vector2.right;
         inputDirection = inputDirection.normalized;
-
-        int tick = NetworkUtility.GetLocalTick();
 
         m_InputHistory.Add(new InputRecord { Tick = tick, Input = inputDirection });
         m_PredictedPosition = SimulateMove(m_PredictedPosition, inputDirection);
